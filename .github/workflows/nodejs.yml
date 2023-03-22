@@ -1,0 +1,47 @@
+name: Node.js Package
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: sed -i 's/"file:.*"/"latest"/' package.json
+      - name: install dependencies
+        run: npm i
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+        env:
+          ti2_peek_endpoint: 'https://octo.peek.com/integrations/octo'
+          ti2_peek_apiKey: ${{ secrets.PEEK_APIKEY }}
+          ti2_peek_jwtKey: 'Reliance-Overload4-Lyrics'
+  tag:
+    if: github.ref == 'refs/heads/main'
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: tool3/bump@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          unrelated: true
+          branch: main
+  publish-npm:
+    if: github.ref == 'refs/heads/main'
+    needs: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - run: sed -i 's/"file:.*"/"latest"/' package.json
+      - name: install dependencies
+        run: npm i
+      - uses: JS-DevTools/npm-publish@v1
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
