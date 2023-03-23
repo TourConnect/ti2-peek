@@ -27,8 +27,8 @@ const resolvers = {
         }, unitsWithQuantity),
       }), jwtKey);
     },
-    dateTimeStart: root => R.path(['localDateTimeStart'], root),
-    dateTimeEnd: root => R.path(['localDateTimeEnd'], root),
+    dateTimeStart: root => R.path(['localDateTimeStart'], root) || R.path(['localDate'], root),
+    dateTimeEnd: root => R.path(['localDateTimeEnd'], root) || R.path(['localDate'], root),
     allDay: R.path(['allDay']),
     vacancies: R.prop('vacancies'),
     available: avail => Boolean(avail.status === 'AVAILABLE' || avail.status === 'FREESALE'),
@@ -45,9 +45,9 @@ const resolvers = {
   },
   Pricing: {
     unitId: R.prop('unitId'),
-    original: R.prop('total'),
-    retail: R.prop('total'),
-    net: R.prop('total'),
+    original: R.prop('original'),
+    retail: R.prop('retail'),
+    net: R.prop('net'),
     currencyPrecision: R.prop('currencyPrecision'),
   },
 };

@@ -196,27 +196,12 @@ class Plugin {
           localDateEnd,
           units: units[ix].map(u => ({ id: u.unitId, quantity: u.quantity })),
         };
-        // we will do some match and filtering later
-        const availWithoutUnits = R.path(['data'], await this.axios({
-          method: 'post',
-          url,
-          data: R.omit(['units'], data),
-          headers,
-        }));
-        const availWithUnits = R.path(['data'], await this.axios({
+        return R.path(['data'], await this.axios({
           method: 'post',
           url,
           data,
           headers,
         }));
-        return availWithUnits.map(avail => {
-          const foundMatch = availWithoutUnits.find(a => a.id === avail.id);
-          if (!foundMatch) return avail;
-          return {
-            ...avail,
-            unitPricing: foundMatch.unitPricing,
-          }
-        });
       }, { concurrency: CONCURRENCY })
     );
     availability = await Promise.map(availability,
@@ -291,6 +276,7 @@ class Plugin {
           data,
           headers,
         });
+        // console.log(result.data);
         return Promise.map(result.data, avail => translateAvailability({
           rootValue: avail,
           typeDefs: availTypeDefs,
@@ -366,7 +352,7 @@ class Plugin {
         rootValue: {
           ...booking,
           product,
-          option: product.options.find(o => o.id === dataFromAvailKey.optionId),
+          option: product.options.find(o => o.optionId === dataFromAvailKey.optionId),
         },
         typeDefs: bookingTypeDefs,
         query: bookingQuery,
@@ -383,6 +369,8 @@ class Plugin {
       id,
       reason,
     },
+    typeDefsAndQueries,
+    token,
     typeDefsAndQueries: {
       bookingTypeDefs,
       bookingQuery,
@@ -399,9 +387,20 @@ class Plugin {
       data: { reason },
       headers,
     }));
+    const { products: [product] } = await this.searchProducts({
+      typeDefsAndQueries,
+      token,
+      payload: {
+        productId: booking.productId,
+      }
+    });
     return ({
       cancellation: await translateBooking({
-        rootValue: booking,
+        rootValue: {
+          ...booking,
+          product,
+          option: product.options.find(o => o.optionId === booking.optionId),
+        },
         typeDefs: bookingTypeDefs,
         query: bookingQuery,
       })
@@ -418,6 +417,8 @@ class Plugin {
       travelDateEnd,
       dateFormat,
     },
+    typeDefsAndQueries,
+    token,
     typeDefsAndQueries: {
       bookingTypeDefs,
       bookingQuery,
@@ -467,8 +468,19 @@ class Plugin {
     })();
     return ({
       bookings: await Promise.map(R.unnest(bookings), async booking => {
+        const { products: [product] } = await this.searchProducts({
+          typeDefsAndQueries,
+          token,
+          payload: {
+            productId: booking.productId,
+          }
+        });
         return translateBooking({
-          rootValue: booking,
+          rootValue: {
+            ...booking,
+            product,
+            option: product.options.find(o => o.optionId === booking.optionId),
+          },
           typeDefs: bookingTypeDefs,
           query: bookingQuery,
         });

@@ -19,8 +19,8 @@ const resolvers = {
     bookingId: R.pathOr('', ['supplierReference']),
     supplierBookingId: R.path(['supplierReference']),
     status: e => capitalize(R.path(['status'], e)),
-    productId: R.path(['product', 'id']),
-    productName: R.path(['product', 'title']),
+    productId: R.path(['product', 'productId']),
+    productName: R.path(['product', 'productName']),
     cancellable: root => {
       if (root.status === 'CANCELED') return false;
       return root.cancellable;
@@ -34,7 +34,7 @@ const resolvers = {
     start: R.path(['availability', 'localDateTimeStart']),
     end: R.path(['availability', 'localDateTimeEnd']),
     allDay: R.path(['availability', 'allDay']),
-    bookingDate: R.path(['utcCreatedAt']),
+    bookingDate: R.path(['utcConfirmedAt']),
     holder: root => ({
       name: R.path(['contact', 'firstName'], root),
       surname: R.path(['contact', 'lastName'], root),
@@ -44,8 +44,8 @@ const resolvers = {
     }),
     notes: R.pathOr('', ['notes']),
     price: root => ({
-      original: R.path(['pricing', 'total'], root),
-      retail: R.path(['pricing', 'total'], root),
+      original: R.path(['pricing', 'original'], root),
+      retail: R.path(['pricing', 'retail'], root),
       currencyPrecision: R.path(['pricing', 'currencyPrecision'], root),
       currency: R.path(['pricing', 'currency'], root),
     }),
