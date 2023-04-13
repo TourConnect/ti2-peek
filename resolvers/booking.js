@@ -27,9 +27,9 @@ const resolvers = {
     },
     editable: () => false,
     unitItems: ({ unitItems = [] }) => unitItems.map(unitItem => ({
-      unitItemId: R.path(['uuid']),
-      unitId: R.path(['unitId']),
-      unitName: R.pathOr('', ['unit', 'title']),
+      unitItemId: R.path(['uuid'], unitItem),
+      unitId: R.path(['unitId'], unitItem),
+      unitName: R.pathOr('', ['unit', 'title'], unitItem),
     })),
     start: R.path(['availability', 'localDateTimeStart']),
     end: R.path(['availability', 'localDateTimeEnd']),
