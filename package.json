@@ -1,6 +1,6 @@
 {
   "name": "ti2-peek",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Peek's TI2 Plugin",
   "main": "index.js",
   "scripts": {
