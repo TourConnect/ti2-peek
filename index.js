@@ -1,5 +1,3 @@
-const axiosRaw = require('axios');
-const curlirize = require('axios-curlirize');
 const R = require('ramda');
 const Promise = require('bluebird');
 const assert = require('assert');
@@ -13,55 +11,22 @@ const { translateBooking } = require('./resolvers/booking');
 const endpoint = 'https://octo.peek.com/integrations/octo';
 
 const CONCURRENCY = 3; // is this ok ?
-if (process.env.debug) {
-  curlirize(axiosRaw);
-}
 
 const isNilOrEmpty = R.either(R.isNil, R.isEmpty);
 
 const getHeaders = ({
   apiKey,
-  requestId,
 }) => ({
   Authorization: `Bearer ${apiKey}`,
   'Content-Type': 'application/json',
   'Octo-Capabilities': 'octo/pricing,octo/pickups,octo/cart',
-  ...requestId ? { requestId } : {},
 });
 
 
-const axiosSafeRequest = R.pick(['headers', 'method', 'url', 'data']);
-const axiosSafeResponse = response => {
-  const retVal = R.pick(['data', 'status', 'statusText', 'headers', 'request'], response);
-  retVal.request = axiosSafeRequest(retVal.request);
-  return retVal;
-};
 class Plugin {
   constructor(params) { // we get the env variables from here
     Object.entries(params).forEach(([attr, value]) => {
       this[attr] = value;
-    });
-    if (this.events) {
-      axiosRaw.interceptors.request.use(request => {
-        this.events.emit(`${this.name}.axios.request`, axiosSafeRequest(request));
-        return request;
-      });
-      axiosRaw.interceptors.response.use(response => {
-        this.events.emit(`${this.name}.axios.response`, axiosSafeResponse(response));
-        return response;
-      });
-    }
-    const pluginObj = this;
-    this.axios = async (...args) => axiosRaw(...args).catch(err => {
-      const errMsg = R.omit(['config'], err.toJSON());
-      console.log(`error in ${this.name}`, args[0], errMsg, err.response.data);
-      if (pluginObj.events) {
-        pluginObj.events.emit(`${this.name}.axios.error`, {
-          request: args[0],
-          err: errMsg,
-        });
-      }
-      throw R.pathOr(err, ['response', 'data', 'details'], err);
     });
     this.tokenTemplate = () => ({
       apiKey: {
@@ -73,18 +38,17 @@ class Plugin {
   }
 
   async validateToken({
+    axios,
     token: {
       apiKey,
     },
-    requestId,
   }) {
     const url = `${endpoint || this.endpoint}/products/`;
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     try {
-      const suppliers = R.path(['data'], await this.axios({
+      const suppliers = R.path(['data'], await axios({
         method: 'get',
         url,
         headers,
@@ -96,6 +60,7 @@ class Plugin {
   }
 
   async searchProducts({
+    axios,
     token: {
       apiKey,
     },
@@ -104,7 +69,6 @@ class Plugin {
       productTypeDefs,
       productQuery,
     },
-    requestId,
   }) {
     let url = `${endpoint || this.endpoint}/products`;
     if (!isNilOrEmpty(payload)) {
@@ -114,9 +78,8 @@ class Plugin {
     }
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
-    let results = R.pathOr([], ['data'], await this.axios({
+    let results = R.pathOr([], ['data'], await axios({
       method: 'get',
       url,
       headers,
@@ -159,6 +122,7 @@ class Plugin {
   }
 
   async searchAvailability({
+    axios,
     token: {
       apiKey,
     },
@@ -175,7 +139,6 @@ class Plugin {
       availTypeDefs,
       availQuery,
     },
-    requestId,
   }) {
     assert(this.jwtKey, 'JWT secret should be set');
     assert(
@@ -192,7 +155,6 @@ class Plugin {
     const localDateEnd = moment(endDate, dateFormat).format('YYYY-MM-DD');
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     const url = `${endpoint || this.endpoint}/availability`;
     let availability = (
@@ -204,7 +166,7 @@ class Plugin {
           localDateEnd,
           units: units[ix].map(u => ({ id: u.unitId, quantity: u.quantity })),
         };
-        return R.path(['data'], await this.axios({
+        return R.path(['data'], await axios({
           method: 'post',
           url,
           data,
@@ -234,6 +196,7 @@ class Plugin {
   }
 
   async availabilityCalendar({
+    axios,
     token: {
       apiKey,
     },
@@ -250,7 +213,6 @@ class Plugin {
       availTypeDefs,
       availQuery,
     },
-    requestId,
   }) {
     assert(this.jwtKey, 'JWT secret should be set');
     assert(
@@ -267,7 +229,6 @@ class Plugin {
     const localDateEnd = moment(endDate, dateFormat).format('YYYY-MM-DD');
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     const url = `${endpoint || this.endpoint}/availability/calendar`;
     const availability = (
@@ -280,7 +241,7 @@ class Plugin {
           // units is required here to get the total pricing for the calendar
           units: units[ix].map(u => ({ id: u.unitId, quantity: u.quantity })),
         };
-        const result = await this.axios({
+        const result = await axios({
           method: 'post',
           url,
           data,
@@ -298,6 +259,7 @@ class Plugin {
   }
 
   async createBooking({
+    axios,
     token: {
       apiKey,
     },
@@ -314,18 +276,16 @@ class Plugin {
       bookingTypeDefs,
       bookingQuery,
     },
-    requestId,
   }) {
     assert(availabilityKey, 'an availability code is required !');
     assert(R.path(['name'], holder), 'a holder\' first name is required');
     assert(R.path(['surname'], holder), 'a holder\' surname is required');
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     const urlForCreateBooking = `${endpoint || this.endpoint}/bookings`;
     const dataFromAvailKey = await jwt.verify(availabilityKey, this.jwtKey);
-    let booking = R.path(['data'], await this.axios({
+    let booking = R.path(['data'], await axios({
       method: 'post',
       url: urlForCreateBooking,
       data: {
@@ -346,13 +306,14 @@ class Plugin {
       resellerReference: reference,
       // settlementMethod,
     };
-    booking = R.path(['data'], await this.axios({
+    booking = R.path(['data'], await axios({
       method: 'post',
       url: `${endpoint || this.endpoint}/bookings/${booking.uuid}/confirm`,
       data: dataForConfirmBooking,
       headers,
     }));
     const { products: [product] } = await this.searchProducts({
+      axios,
       typeDefsAndQueries,
       token,
       payload: {
@@ -373,6 +334,7 @@ class Plugin {
   }
 
   async cancelBooking({
+    axios,
     token: {
       apiKey,
     },
@@ -387,21 +349,20 @@ class Plugin {
       bookingTypeDefs,
       bookingQuery,
     },
-    requestId,
   }) {
     assert(!isNilOrEmpty(bookingId) || !isNilOrEmpty(id), 'Invalid booking id');
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     const url = `${endpoint || this.endpoint}/bookings/${bookingId || id}`;
-    const booking = R.path(['data'], await this.axios({
+    const booking = R.path(['data'], await axios({
       method: 'delete',
       url,
       data: { reason },
       headers,
     }));
     const { products: [product] } = await this.searchProducts({
+      axios,
       typeDefsAndQueries,
       token,
       payload: {
@@ -422,6 +383,7 @@ class Plugin {
   }
 
   async searchBooking({
+    axios,
     token: {
       apiKey,
     },
@@ -437,7 +399,6 @@ class Plugin {
       bookingTypeDefs,
       bookingQuery,
     },
-    requestId,
   }) {
     assert(
       !isNilOrEmpty(bookingId)
@@ -448,11 +409,10 @@ class Plugin {
     );
     const headers = getHeaders({
       apiKey,
-      requestId,
     });
     const searchByUrl = async url => {
       try {
-        return R.path(['data'], await this.axios({
+        return R.path(['data'], await axios({
           method: 'get',
           url,
           headers,
@@ -474,7 +434,7 @@ class Plugin {
         const localDateStart = moment(travelDateStart, dateFormat).format('YYYY-MM-DD');
         const localDateEnd = moment(travelDateEnd, dateFormat).format('YYYY-MM-DD');
         url = `${endpoint || this.endpoint}/bookings?localDateStart=${encodeURIComponent(localDateStart)}&localDateEnd=${encodeURIComponent(localDateEnd)}`;
-        return R.path(['data'], await this.axios({
+        return R.path(['data'], await axios({
           method: 'get',
           url,
           headers,
@@ -485,6 +445,7 @@ class Plugin {
     return ({
       bookings: await Promise.map(R.unnest(bookings), async booking => {
         const { products: [product] } = await this.searchProducts({
+          axios,
           typeDefsAndQueries,
           token,
           payload: {
